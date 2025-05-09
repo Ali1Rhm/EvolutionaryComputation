@@ -1,6 +1,9 @@
 import random
 import csv
+import time
 from pathlib import Path
+
+start_time = time.time()
 
 MAX_WEIGHT = 6_404_180
 WEIGHTS = []
@@ -16,12 +19,13 @@ for row in reader:
     VALUES.append(int(row[1]))
 
 class Chromosome:
-    def __init__(self, size):
+    def __init__(self, size, fill=False):
         self.size = size
         self.genes = []
         self.fitness = None
         self.selection_probability = None
-        self.fill_chromosome()
+        if fill:
+            self.fill_chromosome()
 
     def fill_chromosome(self):
         while(len(self.genes) < self.size):
@@ -95,7 +99,7 @@ while current_iteration <= iterations:
     # Initialize population
     if current_iteration == 1:
         while(len(population) < population_size):
-            chromosome = Chromosome(24)
+            chromosome = Chromosome(24, fill=True)
             if validate_chromosome(chromosome) != True:
                 continue
             chromosome.fitness = get_chromosome_fitness(chromosome)
@@ -145,3 +149,5 @@ while current_iteration <= iterations:
     print(f'Best chromosome: {population[-1].genes} | {population[-1].fitness} | {MAX_WEIGHT - get_chromosome_weight(population[-1])}\n')
 
     current_iteration += 1
+
+print(f'\nExecution Time: {time.time() - start_time}')

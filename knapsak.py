@@ -9,7 +9,7 @@ MAX_WEIGHT = 6_404_180
 WEIGHTS = []
 VALUES = []
 
-path = Path('knapsak.csv')
+path = Path('data/knapsak.csv')
 lines = path.read_text().splitlines()
 reader = csv.reader(lines)
 headers_row = next(reader)
@@ -131,15 +131,15 @@ while current_iteration <= iterations:
     i = 2
     while i <= len(pair_indexes):
         offsprings = cross_over(mating_pool[0], mating_pool[1])
-        mating_pool.append(offsprings[0])
-        mating_pool.append(offsprings[1])
+        mating_pool[i - 2] = offsprings[0]
+        mating_pool[i - 1] = offsprings[1]
 
         cross_over_indexes = pair_indexes[i-2:i]
         i += 2
 
     # Apply mutations over individual parents
     for chromosome in mating_pool:
-        chromosome = mutate(chromosome)
+        chromosome = mutate(chromosome, mutation_rate=0.6)
 
     population_mating_pool = (population + mating_pool)
     population_mating_pool = sorted(population_mating_pool, key=lambda c: c.fitness)

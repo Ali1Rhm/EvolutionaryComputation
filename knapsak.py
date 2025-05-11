@@ -3,8 +3,6 @@ import csv
 import time
 from pathlib import Path
 
-start_time = time.time()
-
 MAX_WEIGHT = 6_404_180
 WEIGHTS = []
 VALUES = []
@@ -91,15 +89,18 @@ def mutate(chromosome: Chromosome, mutation_rate = 0.8):
 iterations = 10
 population_size = 10
 mating_pool_size = 20
+gene_count = 24
 population = []
 mating_pool = []
+
+start_time = time.time()
 
 current_iteration = 1
 while current_iteration <= iterations:
     # Initialize population
     if current_iteration == 1:
         while len(population) < population_size:
-            chromosome = Chromosome(24, fill=True)
+            chromosome = Chromosome(size=gene_count, fill=True)
             if validate_chromosome(chromosome) != True:
                 continue
             chromosome.fitness = get_chromosome_fitness(chromosome)
@@ -107,23 +108,22 @@ while current_iteration <= iterations:
 
     # Rank individuals based on their fitness and calculate cumulative probabilities
     ranked_population = sorted(population, key=lambda c: c.fitness)
-    cumulative_probabilities = 0
-    a = []
+    cumulative_probabilities = []
+    cumulative_sum = 0
     for i, chromosome in enumerate(ranked_population):
-        chromosome.selection_probability = get_chromosome_selection_probability(i, population_size)
-        cumulative_probabilities += chromosome.selection_probability
-        a.append(cumulative_probabilities)
+        prob = get_chromosome_selection_probability(i, population_size, s=1.5)
+        chromosome.selection_probability = prob
+        cumulative_sum += prob
+        cumulative_probabilities.append(cumulative_sum)
     
     # Select parents for mating pool using Roulette Wheel
-    current_member = 1
     mating_pool.clear()
-    while current_member <= mating_pool_size:
+    for _ in range(mating_pool_size):
         r = random.uniform(0, 1)
-        i = 0
-        while a[i] < r:
-            i += 1
-        mating_pool.append(ranked_population[i])
-        current_member += 1
+        for i, cp in enumerate(cumulative_probabilities):
+            if cp >= r:
+                mating_pool.append(ranked_population[i])
+                break
 
     # Apply cross-over over parents pairs
     pair_indexes = list(range(len(mating_pool)))
@@ -149,4 +149,4 @@ while current_iteration <= iterations:
 
     current_iteration += 1
 
-print(f'\nExecution Time: {time.time() - start_time}')
+print(f"\nExecution Time: {time.time() - start_time:.2f} seconds")

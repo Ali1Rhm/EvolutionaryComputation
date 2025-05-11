@@ -3,18 +3,20 @@ import csv
 import time
 from pathlib import Path
 
-MAX_WEIGHT = 6_404_180
-WEIGHTS = []
-VALUES = []
+def load_dataset():
+    path = Path('data/knapsak.csv')
+    lines = path.read_text().splitlines()
+    reader = csv.reader(lines)
+    next(reader)
 
-path = Path('data/knapsak.csv')
-lines = path.read_text().splitlines()
-reader = csv.reader(lines)
-headers_row = next(reader)
+    weights = []
+    values = []
 
-for row in reader:
-    WEIGHTS.append(int(row[0]))
-    VALUES.append(int(row[1]))
+    for row in reader:
+        weights.append(int(row[0]))
+        values.append(int(row[1]))
+    
+    return weights, values
 
 class Chromosome:
     def __init__(self, size, fill=False):
@@ -35,13 +37,13 @@ def validate_chromosome(chromosome: Chromosome):
 def get_chromosome_weight(chromosome: Chromosome):
     weight = 0
     for i in range(chromosome.size):
-        weight += WEIGHTS[i] * chromosome.genes[i]
+        weight += weights[i] * chromosome.genes[i]
     return weight
 
 def get_chromosome_value(chromosome: Chromosome):
     value = 0
     for i in range(chromosome.size):
-        value += VALUES[i] * chromosome.genes[i]
+        value += values[i] * chromosome.genes[i]
     return value
 
 def get_chromosome_fitness(chromosome: Chromosome):
@@ -51,7 +53,7 @@ def get_chromosome_fitness(chromosome: Chromosome):
         return fitness
     
     for i in range(chromosome.size):
-        fitness += VALUES[i] * chromosome.genes[i]
+        fitness += values[i] * chromosome.genes[i]
     return fitness
 
 def get_chromosome_selection_probability(rank, population_size, s=2):
@@ -86,6 +88,8 @@ def mutate(chromosome: Chromosome, mutation_rate = 0.8):
     mutated.fitness = get_chromosome_fitness(mutated)
     return mutated
 
+MAX_WEIGHT = 6_404_180
+weights, values = load_dataset()
 iterations = 10
 population_size = 10
 mating_pool_size = 20

@@ -55,7 +55,7 @@ def get_chromosome_fitness(chromosome: Chromosome):
     return fitness
 
 def get_chromosome_selection_probability(rank, population_size, s=2):
-    return ((2-s)/population_size) + ((2*rank*(s - 1)) / (population_size*(population_size-1)))
+    return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
 
 # Uniform
 def cross_over(first_parent: Chromosome, second_parent: Chromosome, p=0.5):
@@ -72,7 +72,7 @@ def cross_over(first_parent: Chromosome, second_parent: Chromosome, p=0.5):
             second_child.genes.append(first_parent.genes[i])
     first_child.fitness = get_chromosome_fitness(first_child)
     second_child.fitness = get_chromosome_fitness(second_child)
-    return (first_child, second_child)
+    return first_child, second_child
 
 def mutate(chromosome: Chromosome, mutation_rate = 0.8):
     chromosome_size = chromosome.size

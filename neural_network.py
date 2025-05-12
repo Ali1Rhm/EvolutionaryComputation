@@ -44,7 +44,7 @@ def get_chromosome_fitness(chromosome: Chromosome):
 def get_chromosome_selection_probability(rank, population_size, s=2):
     return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
 
-def cross_over(first_parent: Chromosome, second_parent: Chromosome, a=0.5):
+def crossover(first_parent: Chromosome, second_parent: Chromosome, a=0.5):
     size = first_parent.size
     first_child = Chromosome(size)
     second_child = Chromosome(size)
@@ -109,7 +109,7 @@ for current_iteration in range(1, iterations + 1):
     random.shuffle(mating_pool)
     offspring = []
     for i in range(0, len(mating_pool) - 1, 2):
-        c1, c2 = cross_over(mating_pool[i], mating_pool[i + 1], a=0.65)
+        c1, c2 = crossover(mating_pool[i], mating_pool[i + 1], a=0.65)
         offspring.extend([c1, c2])
 
     # Apply mutations over individual parents

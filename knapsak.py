@@ -60,7 +60,7 @@ def get_chromosome_selection_probability(rank, population_size, s=2):
     return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
 
 # Uniform
-def cross_over(first_parent: Chromosome, second_parent: Chromosome, p=0.5):
+def crossover(first_parent: Chromosome, second_parent: Chromosome, p=0.5):
     chromosome_size = first_parent.size
     first_child = Chromosome(chromosome_size)
     second_child = Chromosome(chromosome_size)
@@ -135,7 +135,7 @@ while current_iteration <= iterations:
     i = 2
     while i <= len(pair_indexes):
         cross_over_indexes = pair_indexes[i-2:i]
-        offsprings = cross_over(mating_pool[cross_over_indexes[0]], mating_pool[cross_over_indexes[1]])
+        offsprings = crossover(mating_pool[cross_over_indexes[0]], mating_pool[cross_over_indexes[1]])
         mating_pool.append(offsprings[0])
         mating_pool.append(offsprings[1])
         i += 2

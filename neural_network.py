@@ -3,7 +3,7 @@ import csv
 import time
 import random
 
-from neural_network_loss import total_loss
+from utils.neural_network_loss import total_loss
 
 def load_dataset():
     inputs = []

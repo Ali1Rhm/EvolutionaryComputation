@@ -51,4 +51,4 @@ def total_loss(weights_flat: List[float],
         y_pred  = softmax(logits)
         total  += xent(y_pred, y)
 
-    return total
+    return total / len(inputs)

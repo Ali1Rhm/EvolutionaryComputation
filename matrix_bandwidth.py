@@ -2,6 +2,15 @@ import random
 from pathlib import Path
 import time
 
+def get_bandwidth(matrix):
+    row_bandwidths = []
+    for i, row in enumerate(matrix):
+        try:
+            row_bandwidths.append(i - row.index(1))
+        except ValueError:
+            continue
+    return max(row_bandwidths)
+
 start_time = time.time()
 
 N = 4
@@ -29,5 +38,13 @@ temp_matrix = permutated_matrix[:]
 for i in range(N):
     temp_matrix[i] = permutated_matrix[permutation[i] - 1]
 permutated_matrix = temp_matrix
+
+for row in matrix:
+    print(row)
+print(f'original matrix bandwidth: {get_bandwidth(matrix)}\n')
+
+for row in permutated_matrix:
+    print(row)
+print(f'permutated matrix bandwidth: {get_bandwidth(permutated_matrix)}')
 
 print(f'{time.time() - start_time}')

@@ -2,7 +2,7 @@ import random
 from pathlib import Path
 import time
 
-from matrix_bandwidth_HC import hill_climb
+from _06_matrix_bandwidth_HC import hill_climb
 
 def get_edge_list(path: Path, N: int):
     edges = []

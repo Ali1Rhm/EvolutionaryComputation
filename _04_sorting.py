@@ -25,37 +25,33 @@ def get_chromosome_fitness(chromosome: Chromosome):
 def get_chromosome_selection_probability(rank, population_size, s=2):
     return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
 
-def crossover(first_parent: Chromosome, second_parent: Chromosome):
-    chromosome_size = first_parent.size
+def crossover(parent1: Chromosome, parent2: Chromosome):
+    size = parent1.size
+    cut1 = random.randint(0, size - 2)
+    cut2 = random.randint(cut1 + 1, size - 1)
 
-    first_child = Chromosome(chromosome_size)
-    second_child = Chromosome(chromosome_size)
-    first_cut_point = random.choice(range(0, chromosome_size-1))
-    second_cut_point = first_cut_point + random.choice(range(1, chromosome_size-(first_cut_point)))
+    def pmx(p1, p2):
+        child = [-1] * size
 
-    first_child.genes = first_parent.genes[:]
-    first_child.genes[first_cut_point:second_cut_point+1] = second_parent.genes[first_cut_point:second_cut_point+1]
-    second_child.genes = second_parent.genes[:]
-    second_child.genes[first_cut_point:second_cut_point+1] = first_parent.genes[first_cut_point:second_cut_point+1]
+        child[cut1:cut2+1] = p2[cut1:cut2+1]
 
-    for i in range(chromosome_size):
-        if i >= first_cut_point and i <= second_cut_point:
-            continue
-        while first_child.genes.count(first_child.genes[i]) != 1:
-            if i < first_cut_point:
-                index = first_child.genes.index(first_child.genes[i], i+1)
-                first_child.genes[i] = first_parent.genes[index]
-            else:
-                index = first_child.genes.index(first_child.genes[i])
-                first_child.genes[i] = first_parent.genes[index]
+        mapping = {p2[i]: p1[i] for i in range(cut1, cut2+1)}
 
-        while second_child.genes.count(second_child.genes[i]) != 1:
-            if i < first_cut_point:
-                index = second_child.genes.index(second_child.genes[i], i+1)
-                second_child.genes[i] = second_parent.genes[index]
-            else:
-                index = second_child.genes.index(second_child.genes[i])
-                second_child.genes[i] = second_parent.genes[index]
+        for i in range(size):
+            if i >= cut1 and i <= cut2:
+                continue
+            gene = p1[i]
+            while gene in child[cut1:cut2+1]:
+                gene = mapping[gene]
+            child[i] = gene
+
+        return child
+
+    first_child = Chromosome(size)
+    second_child = Chromosome(size)
+
+    first_child.genes = pmx(parent1.genes, parent2.genes)
+    second_child.genes = pmx(parent2.genes, parent1.genes)
 
     first_child.fitness = get_chromosome_fitness(first_child)
     second_child.fitness = get_chromosome_fitness(second_child)

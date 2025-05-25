@@ -153,7 +153,7 @@ def mutate(tree: Tree):
     if not subtrees:
         return tree
 
-    subtree_to_replace, parent, is_left = random.choice(subtrees)
+    _, parent, is_left = random.choice(subtrees)
 
     new_subtree = generate_random_tree(random.randint(3, 6))
 

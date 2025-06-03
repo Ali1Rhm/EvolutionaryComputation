@@ -136,6 +136,9 @@ while current_iteration <= iterations:
     print(f'Iteration {current_iteration:}')
     print(f'Best chromosome fitness: {population[-1].fitness:_}\n')
 
+    if current_iteration == iterations:
+        print(population[-1].genes)
+
     current_iteration += 1
 
 print(f"\nExecution Time: {time.time() - start_time:.2f} seconds")

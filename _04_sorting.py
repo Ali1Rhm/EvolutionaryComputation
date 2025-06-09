@@ -1,144 +1,145 @@
 import random
 import time
+import copy
 
 class Chromosome:
-    def __init__(self, size, fill=False):
+    def __init__(self, size):
         self.size = size
         self.genes = []
-        self.fitness = None
-        self.selection_probability = None
-        if fill:
-            self.fill_chromosome()
+        self.fitness = 0
 
-    def fill_chromosome(self):
-        sorted_sequence = list(range(1, self.size+1))
-        random.shuffle(sorted_sequence)
-        self.genes = sorted_sequence
+    def initialize_genes(self):
+        self.genes = list(range(1, self.size + 1))
+        random.shuffle(self.genes)
 
-def get_chromosome_fitness(chromosome: Chromosome):
+def get_chromosome_fitness(chromosome):
     fitness = 0
-    for i, value in enumerate(chromosome.genes):
-        if i+1 == value:
+    for i in range(chromosome.size):
+        if chromosome.genes[i] == i + 1:
             fitness += 1
     return fitness
 
-def get_chromosome_selection_probability(rank, population_size, s=2):
-    return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
-
-def crossover(parent1: Chromosome, parent2: Chromosome):
+def crossover(parent1, parent2):
     size = parent1.size
-    cut1 = random.randint(0, size - 2)
-    cut2 = random.randint(cut1 + 1, size - 1)
+    child1 = Chromosome(size)
+    child2 = Chromosome(size)
 
-    def pmx(p1, p2):
-        child = [-1] * size
+    def pmx(p1_genes, p2_genes):
+        child_genes = [-1] * size
+        p1 = p1_genes[:]
+        p2 = p2_genes[:]
+        
+        cut1, cut2 = sorted(random.sample(range(size), 2))
 
-        child[cut1:cut2+1] = p2[cut1:cut2+1]
+        child_genes[cut1:cut2+1] = p2[cut1:cut2+1]
+        
+        for i in range(cut1, cut2 + 1):
+            if p1[i] not in child_genes:
+                val_to_place = p1[i]
+                p2_val_at_idx = p2[i]
+                
+                current_val = p2_val_at_idx
+                while current_val in p1[cut1:cut2+1]:
+                    idx = p1.index(current_val)
+                    current_val = p2[idx]
 
-        mapping = {p2[i]: p1[i] for i in range(cut1, cut2+1)}
+                p1_idx = p1.index(p2_val_at_idx)
+                
+                j = p1_idx
+                while child_genes[j] != -1:
+                    j = p1.index(p2[j])
+                    
+                child_genes[j] = val_to_place
 
         for i in range(size):
-            if i >= cut1 and i <= cut2:
-                continue
-            gene = p1[i]
-            while gene in child[cut1:cut2+1]:
-                gene = mapping[gene]
-            child[i] = gene
+            if child_genes[i] == -1:
+                child_genes[i] = p1[i]
+        return child_genes
 
-        return child
+    child1.genes = pmx(parent1.genes, parent2.genes)
+    child2.genes = pmx(parent2.genes, parent1.genes)
 
-    first_child = Chromosome(size)
-    second_child = Chromosome(size)
+    return child1, child2
 
-    first_child.genes = pmx(parent1.genes, parent2.genes)
-    second_child.genes = pmx(parent2.genes, parent1.genes)
-
-    first_child.fitness = get_chromosome_fitness(first_child)
-    second_child.fitness = get_chromosome_fitness(second_child)
-
-    return first_child, second_child
-
-def mutate(chromosome: Chromosome, mutation_rate = 0.8):
-    mutated = Chromosome(chromosome.size)
-    mutated.genes = chromosome.genes[:]
-    mutated.fitness = chromosome.fitness
-    p = random.uniform(0, 1)
-    if p <= mutation_rate:
-        return mutated
+def mutate(chromosome, mutation_rate):
+    if random.random() > mutation_rate:
+        return chromosome
     
-    first_cut_point = random.choice(range(0, chromosome.size-1))
-    second_cut_point = first_cut_point + random.choice(range(1, chromosome.size-(first_cut_point)))
+    mutated_chromosome = Chromosome(chromosome.size)
+    mutated_chromosome.genes = chromosome.genes[:]
 
-    slice = chromosome.genes[first_cut_point:second_cut_point+1]
-    slice.reverse()
+    idx1, idx2 = sorted(random.sample(range(chromosome.size), 2))
+    
+    subsequence = mutated_chromosome.genes[idx1:idx2+1]
+    subsequence.reverse()
+    mutated_chromosome.genes[idx1:idx2+1] = subsequence
+    
+    return mutated_chromosome
 
-    mutated.genes[first_cut_point:second_cut_point+1] = slice
-    mutated.fitness = get_chromosome_fitness(mutated)
-
-    return mutated
-
-iterations = 100
-population_size = 400
-mating_pool_size = 400
-gene_count = 100
-population = []
-mating_pool = []
+ITERATIONS = 100
+POPULATION_SIZE = 1200
+GENE_COUNT = 100
+ELITISM_COUNT = 2
+TOURNAMENT_SIZE = 5
+MUTATION_RATE = 0.1
+CROSSOVER_CHANCE = 0.9
 
 start_time = time.time()
 
-current_iteration = 1
-while current_iteration <= iterations:
-    # Initialize population
-    if current_iteration == 1:
-        while len(population) < population_size:
-            chromosome = Chromosome(size=gene_count, fill=True)
-            chromosome.fitness = get_chromosome_fitness(chromosome)
-            population.append(chromosome)
+population = []
+for _ in range(POPULATION_SIZE):
+    chromosome = Chromosome(GENE_COUNT)
+    chromosome.initialize_genes()
+    chromosome.fitness = get_chromosome_fitness(chromosome)
+    population.append(chromosome)
+
+best_solution_ever = None
+
+for i in range(ITERATIONS):
+    population.sort(key=lambda c: c.fitness, reverse=True)
+
+    if best_solution_ever is None or population[0].fitness > best_solution_ever.fitness:
+        best_solution_ever = copy.deepcopy(population[0])
+
+    print(f'Iteration {i+1:3} | Best Fitness: {population[0].fitness:3} | Best Ever: {best_solution_ever.fitness:3}')
+
+    if best_solution_ever.fitness == GENE_COUNT:
+        print("\nOptimal solution found.")
+        break
+
+    next_generation = []
+    next_generation.extend(population[:ELITISM_COUNT])
+
+    while len(next_generation) < POPULATION_SIZE:
+        
+        tournament = random.sample(population, TOURNAMENT_SIZE)
+        tournament.sort(key=lambda c: c.fitness, reverse=True)
+        parent1 = tournament[0]
+
+        if random.random() < CROSSOVER_CHANCE:
+            tournament = random.sample(population, TOURNAMENT_SIZE)
+            tournament.sort(key=lambda c: c.fitness, reverse=True)
+            parent2 = tournament[0]
+            child1, child2 = crossover(parent1, parent2)
+        else:
+            child1 = copy.deepcopy(parent1)
+            child2 = copy.deepcopy(parent1)
+
+        child1 = mutate(child1, MUTATION_RATE)
+        child2 = mutate(child2, MUTATION_RATE)
+        
+        child1.fitness = get_chromosome_fitness(child1)
+        child2.fitness = get_chromosome_fitness(child2)
+
+        next_generation.append(child1)
+        if len(next_generation) < POPULATION_SIZE:
+            next_generation.append(child2)
     
-    # Rank individuals based on their fitness and calculate cumulative probabilities
-    ranked_population = sorted(population, key=lambda c: c.fitness)
-    cumulative_probabilities = []
-    cumulative_sum = 0
-    for i, chromosome in enumerate(ranked_population):
-        prob = get_chromosome_selection_probability(i, population_size, s=1.5)
-        chromosome.selection_probability = prob
-        cumulative_sum += prob
-        cumulative_probabilities.append(cumulative_sum)
+    population = next_generation
 
-    # Select parents for mating pool using Roulette Wheel
-    mating_pool.clear()
-    for _ in range(mating_pool_size):
-        r = random.uniform(0, 1)
-        for i, cp in enumerate(cumulative_probabilities):
-            if cp >= r:
-                mating_pool.append(ranked_population[i])
-                break
-    
-    # Apply cross-over over parents pairs
-    pair_indexes = list(range(len(mating_pool)))
-    random.shuffle(pair_indexes)
-    i = 2
-    while i <= len(pair_indexes):
-        cross_over_indexes = pair_indexes[i-2:i]
-        offsprings = crossover(mating_pool[cross_over_indexes[0]], mating_pool[cross_over_indexes[1]])
-        mating_pool.append(offsprings[0])
-        mating_pool.append(offsprings[1])
-        i += 2
+execution_time = time.time() - start_time
 
-    # Apply mutations over individual parents
-    for chromosome in mating_pool:
-        chromosome = mutate(chromosome)
-
-    population_mating_pool = (population + mating_pool)
-    population_mating_pool = sorted(population_mating_pool, key=lambda c: c.fitness)
-    population = population_mating_pool[-population_size:]
-
-    print(f'Iteration {current_iteration:}')
-    print(f'Best chromosome fitness: {population[-1].fitness:_}\n')
-
-    if current_iteration == iterations:
-        print(population[-1].genes)
-
-    current_iteration += 1
-
-print(f"\nExecution Time: {time.time() - start_time:.2f} seconds")
+print("\n--- Genetic Algorithm Finished ---")
+print(f"Execution Time: {execution_time:.2f} seconds")
+print(f"Best solution fitness: {best_solution_ever.fitness} / {GENE_COUNT}")
+print(f"Best solution genes: {best_solution_ever.genes}")

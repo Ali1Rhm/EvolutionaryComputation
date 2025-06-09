@@ -3,8 +3,11 @@ import csv
 import time
 from pathlib import Path
 
-def load_dataset():
-    path = Path('data/knapsak.csv')
+def load_dataset(file_path='data/knapsak.csv'):
+    path = Path(file_path)
+    if not path.exists():
+        print(f"Error: The file '{file_path}' was not found.")
+        exit()
     lines = path.read_text().splitlines()
     reader = csv.reader(lines)
     next(reader)
@@ -19,138 +22,110 @@ def load_dataset():
     return weights, values
 
 class Chromosome:
-    def __init__(self, size, fill=False):
+    def __init__(self, size):
         self.size = size
         self.genes = []
-        self.fitness = None
-        self.selection_probability = None
-        if fill:
-            self.fill_chromosome()
+        self.fitness = 0
 
-    def fill_chromosome(self):
-        while(len(self.genes) < self.size):
-            self.genes.append(random.choice([0, 1]))
+    def initialize_genes(self):
+        self.genes = [random.choice([0, 1]) for _ in range(self.size)]
 
-def validate_chromosome(chromosome: Chromosome):    
-    return get_chromosome_weight(chromosome) <= MAX_WEIGHT
+def get_chromosome_fitness(chromosome: Chromosome, weights: list, values: list, max_weight: int) -> int:
+    current_weight = 0
+    current_value = 0
+    for i in range(chromosome.size):
+        if chromosome.genes[i] == 1:
+            current_weight += weights[i]
+            current_value += values[i]
+    
+    if current_weight > max_weight:
+        return 0
+    return current_value
 
-def get_chromosome_weight(chromosome: Chromosome):
+def get_chromosome_weight(chromosome: Chromosome, weights: list) -> int:
     weight = 0
     for i in range(chromosome.size):
         weight += weights[i] * chromosome.genes[i]
     return weight
 
-def get_chromosome_value(chromosome: Chromosome):
-    value = 0
-    for i in range(chromosome.size):
-        value += values[i] * chromosome.genes[i]
-    return value
-
-def get_chromosome_fitness(chromosome: Chromosome):
-    fitness = 0
-
-    if get_chromosome_weight(chromosome) > MAX_WEIGHT:
-        return fitness
-    
-    for i in range(chromosome.size):
-        fitness += values[i] * chromosome.genes[i]
-    return fitness
-
-def get_chromosome_selection_probability(rank, population_size, s=2):
-    return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
-
-# Uniform
-def crossover(first_parent: Chromosome, second_parent: Chromosome, p=0.5):
-    chromosome_size = first_parent.size
-    first_child = Chromosome(chromosome_size)
-    second_child = Chromosome(chromosome_size)
-    for i in range(chromosome_size):
-        l = random.uniform(0, 1)
-        if l >= 0.5:
-            first_child.genes.append(first_parent.genes[i])
-            second_child.genes.append(second_parent.genes[i])
+def crossover(parent1: Chromosome, parent2: Chromosome) -> tuple[Chromosome, Chromosome]:
+    child1 = Chromosome(parent1.size)
+    child2 = Chromosome(parent1.size)
+    for i in range(parent1.size):
+        if random.random() < 0.5:
+            child1.genes.append(parent1.genes[i])
+            child2.genes.append(parent2.genes[i])
         else:
-            first_child.genes.append(second_parent.genes[i])
-            second_child.genes.append(first_parent.genes[i])
-    first_child.fitness = get_chromosome_fitness(first_child)
-    second_child.fitness = get_chromosome_fitness(second_child)
-    return first_child, second_child
+            child1.genes.append(parent2.genes[i])
+            child2.genes.append(parent1.genes[i])
+    return child1, child2
 
-def mutate(chromosome: Chromosome, mutation_rate = 0.8):
-    chromosome_size = chromosome.size
-    mutated = Chromosome(chromosome.size)
-    for i in range(chromosome_size):
-        l = random.uniform(0, 1)
-        if l > mutation_rate:
-            mutated.genes.append(-1 * (chromosome.genes[i] - 1))
-        else:
-            mutated.genes.append(chromosome.genes[i])
-    mutated.fitness = get_chromosome_fitness(mutated)
-    return mutated
+def mutate(chromosome: Chromosome, mutation_rate: float) -> Chromosome:
+    mutated_chromosome = Chromosome(chromosome.size)
+    mutated_chromosome.genes = list(chromosome.genes)
+    for i in range(chromosome.size):
+        if random.random() < mutation_rate:
+            mutated_chromosome.genes[i] = 1 - mutated_chromosome.genes[i]
+    return mutated_chromosome
 
 MAX_WEIGHT = 6_404_180
+ITERATIONS = 200
+POPULATION_SIZE = 100
+ELITISM_COUNT = 2
+MUTATION_RATE = 0.02
+
 weights, values = load_dataset()
-iterations = 10
-population_size = 10
-mating_pool_size = 20
-gene_count = 24
-population = []
-mating_pool = []
+GENE_COUNT = len(weights)
 
 start_time = time.time()
 
-current_iteration = 1
-while current_iteration <= iterations:
-    # Initialize population
-    if current_iteration == 1:
-        while len(population) < population_size:
-            chromosome = Chromosome(size=gene_count, fill=True)
-            if validate_chromosome(chromosome) != True:
-                continue
-            chromosome.fitness = get_chromosome_fitness(chromosome)
-            population.append(chromosome)
+population = []
+while len(population) < POPULATION_SIZE:
+    chromosome = Chromosome(size=GENE_COUNT)
+    chromosome.initialize_genes()
+    chromosome.fitness = get_chromosome_fitness(chromosome, weights, values, MAX_WEIGHT)
+    if chromosome.fitness > 0:
+        population.append(chromosome)
 
-    # Rank individuals based on their fitness and calculate cumulative probabilities
-    ranked_population = sorted(population, key=lambda c: c.fitness)
-    cumulative_probabilities = []
-    cumulative_sum = 0
-    for i, chromosome in enumerate(ranked_population):
-        prob = get_chromosome_selection_probability(i, population_size, s=1.5)
-        chromosome.selection_probability = prob
-        cumulative_sum += prob
-        cumulative_probabilities.append(cumulative_sum)
+best_solution_ever = None
+
+for i in range(ITERATIONS):
+    population.sort(key=lambda c: c.fitness, reverse=True)
+
+    if best_solution_ever is None or population[0].fitness > best_solution_ever.fitness:
+        best_solution_ever = population[0]
+
+    print(f'Iteration {i+1:3} | Best Fitness: {population[0].fitness:_} | Best Ever: {best_solution_ever.fitness:_}')
+
+    next_generation = []
+
+    next_generation.extend(population[:ELITISM_COUNT])
+
+    while len(next_generation) < POPULATION_SIZE:
+        parent1 = random.choice(population[:POPULATION_SIZE // 2])
+        parent2 = random.choice(population[:POPULATION_SIZE // 2])
+
+        child1, child2 = crossover(parent1, parent2)
+
+        child1 = mutate(child1, MUTATION_RATE)
+        child2 = mutate(child2, MUTATION_RATE)
+
+        child1.fitness = get_chromosome_fitness(child1, weights, values, MAX_WEIGHT)
+        child2.fitness = get_chromosome_fitness(child2, weights, values, MAX_WEIGHT)
+        
+        if child1.fitness > 0:
+            next_generation.append(child1)
+        if len(next_generation) < POPULATION_SIZE and child2.fitness > 0:
+            next_generation.append(child2)
     
-    # Select parents for mating pool using Roulette Wheel
-    mating_pool.clear()
-    for _ in range(mating_pool_size):
-        r = random.uniform(0, 1)
-        for i, cp in enumerate(cumulative_probabilities):
-            if cp >= r:
-                mating_pool.append(ranked_population[i])
-                break
+    population = next_generation
 
-    # Apply cross-over over parents pairs
-    pair_indexes = list(range(len(mating_pool)))
-    random.shuffle(pair_indexes)
-    i = 2
-    while i <= len(pair_indexes):
-        cross_over_indexes = pair_indexes[i-2:i]
-        offsprings = crossover(mating_pool[cross_over_indexes[0]], mating_pool[cross_over_indexes[1]])
-        mating_pool.append(offsprings[0])
-        mating_pool.append(offsprings[1])
-        i += 2
+final_best_chromosome = best_solution_ever
+final_weight = get_chromosome_weight(final_best_chromosome, weights)
+execution_time = time.time() - start_time
 
-    # Apply mutations over individual parents
-    for chromosome in mating_pool:
-        chromosome = mutate(chromosome)
-
-    population_mating_pool = (population + mating_pool)
-    population_mating_pool = sorted(population_mating_pool, key=lambda c: c.fitness)
-    population = population_mating_pool[-population_size:]
-
-    print(f'Iteration {current_iteration:}')
-    print(f'Best chromosome: {population[-1].genes} | {population[-1].fitness:_} | {get_chromosome_weight(population[-1]):_}\n')
-
-    current_iteration += 1
-
-print(f"\nExecution Time: {time.time() - start_time:.2f} seconds")
+print("\n--- Genetic Algorithm Finished ---")
+print(f"Execution Time: {execution_time:.2f} seconds")
+print(f"Best solution fitness: {final_best_chromosome.fitness:_}")
+print(f"Best solution weight: {final_weight:_} / {MAX_WEIGHT:_}")
+print(f"Best solution genes: {final_best_chromosome.genes}")

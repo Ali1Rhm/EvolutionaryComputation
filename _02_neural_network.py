@@ -1,126 +1,136 @@
-from pathlib import Path
+import random
 import csv
 import time
-import random
+from pathlib import Path
 
 from utils.neural_network_loss import total_loss
 
-def load_dataset():
+def load_dataset(inputs_path='data/thyroidInputs.csv', targets_path='data/thyroidTargets.csv'):
     inputs = []
     targets = []
 
-    path_inputs = Path('data/thyroidInputs.csv')
-    path_targets = Path('data/thyroidTargets.csv')
+    path_inputs = Path(inputs_path)
+    path_targets = Path(targets_path)
 
-    lines = path_inputs.read_text(encoding='utf-8').splitlines()
-    reader = csv.reader(lines)
-    for row in reader:
-        input = [float(value) for value in row]
-        inputs.append(input)
+    if not path_inputs.exists() or not path_targets.exists():
+        print("Warning: Dataset files not found. Creating dummy data.")
+        Path('data').mkdir(exist_ok=True)
+        with open(inputs_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            for _ in range(100):
+                writer.writerow([random.uniform(0, 1) for _ in range(21)])
+        with open(targets_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            for _ in range(100):
+                row = ['0', '0', '0']
+                row[random.randint(0, 2)] = '1'
+                writer.writerow(row)
 
-    lines = path_targets.read_text(encoding='utf-8').splitlines()
-    reader = csv.reader(lines)
-    for row in reader:
-        target = row.index('1')
-        targets.append(target)
+
+    lines_inputs = path_inputs.read_text(encoding='utf-8').splitlines()
+    reader_inputs = csv.reader(lines_inputs)
+    for row in reader_inputs:
+        inputs.append([float(value) for value in row])
+
+    lines_targets = path_targets.read_text(encoding='utf-8').splitlines()
+    reader_targets = csv.reader(lines_targets)
+    for row in reader_targets:
+        targets.append(row.index('1'))
 
     return inputs, targets
 
 class Chromosome:
-    def __init__(self, size, fill=False):
+    def __init__(self, size):
         self.size = size
         self.genes = []
-        self.fitness = None
-        self.selection_probability = None
-        if fill:
-            self.fill_chromosome()
+        self.fitness = float('inf')
 
-    def fill_chromosome(self):
+    def initialize_genes(self):
         self.genes = [random.uniform(-1, 1) for _ in range(self.size)]
 
-def get_chromosome_fitness(chromosome: Chromosome):
+def get_chromosome_fitness(chromosome, inputs, targets):
     return total_loss(chromosome.genes, inputs, targets)
 
-def get_chromosome_selection_probability(rank, population_size, s=2):
-    return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
+def crossover(parent1, parent2, alpha=0.65):
+    child1 = Chromosome(parent1.size)
+    child2 = Chromosome(parent1.size)
 
-def crossover(first_parent: Chromosome, second_parent: Chromosome, a=0.5):
-    size = first_parent.size
-    first_child = Chromosome(size)
-    second_child = Chromosome(size)
+    for i in range(parent1.size):
+        gene1 = alpha * parent1.genes[i] + (1 - alpha) * parent2.genes[i]
+        gene2 = alpha * parent2.genes[i] + (1 - alpha) * parent1.genes[i]
+        child1.genes.append(min(max(gene1, -1), 1))
+        child2.genes.append(min(max(gene2, -1), 1))
 
-    for i in range(size):
-        g1 = a * first_parent.genes[i] + (1 - a) * second_parent.genes[i]
-        g2 = a * second_parent.genes[i] + (1 - a) * first_parent.genes[i]
-        first_child.genes.append(min(max(g1, -1), 1))
-        second_child.genes.append(min(max(g2, -1), 1))
+    return child1, child2
 
-    first_child.fitness = get_chromosome_fitness(first_child)
-    second_child.fitness = get_chromosome_fitness(second_child)
-
-    return first_child, second_child
-
-def mutate(chromosome: Chromosome, mutation_rate=0.1, mutation_strength=0.1):
+def mutate(chromosome, mutation_rate, mutation_strength):
+    mutated_chromosome = Chromosome(chromosome.size)
+    mutated_chromosome.genes = list(chromosome.genes)
     for i in range(chromosome.size):
         if random.random() < mutation_rate:
-            chromosome.genes[i] += random.uniform(-mutation_strength, mutation_strength)
-            chromosome.genes[i] = max(-1, min(1, chromosome.genes[i]))
-    chromosome.fitness = get_chromosome_fitness(chromosome)
-    return chromosome
+            mutation_value = random.uniform(-mutation_strength, mutation_strength)
+            mutated_chromosome.genes[i] += mutation_value
+            mutated_chromosome.genes[i] = max(-1, min(1, mutated_chromosome.genes[i]))
+    return mutated_chromosome
+
+ITERATIONS = 10
+POPULATION_SIZE = 100
+ELITISM_COUNT = 2
+TOURNAMENT_SIZE = 5
+MUTATION_RATE = 0.1
+MUTATION_STRENGTH = 0.2
+CROSSOVER_ALPHA = 0.65
 
 inputs, targets = load_dataset()
-iterations = 20
-population_size = 10
-mating_pool_size = 10
-gene_count = 158
-population = []
-mating_pool = []
+GENE_COUNT = 158
 
 start_time = time.time()
 
-for current_iteration in range(1, iterations + 1):
-    # Initialize population
-    if current_iteration == 1:
-        for _ in range(population_size):
-            chromosome = Chromosome(gene_count, fill=True)
-            chromosome.fitness = get_chromosome_fitness(chromosome)
-            population.append(chromosome)
+population = []
+for _ in range(POPULATION_SIZE):
+    chromosome = Chromosome(GENE_COUNT)
+    chromosome.initialize_genes()
+    chromosome.fitness = get_chromosome_fitness(chromosome, inputs, targets)
+    population.append(chromosome)
 
-    # Rank individuals based on their fitness and calculate cumulative probabilities
-    ranked_population = sorted(population, reverse=True, key=lambda c: c.fitness)
-    cumulative_probabilities = []
-    cumulative_sum = 0
-    for i, chromosome in enumerate(ranked_population):
-        prob = get_chromosome_selection_probability(i, population_size, s=1.5)
-        chromosome.selection_probability = prob
-        cumulative_sum += prob
-        cumulative_probabilities.append(cumulative_sum)
+best_solution_ever = None
 
-    # Select parents for mating pool using Roulette Wheel
-    mating_pool.clear()
-    for _ in range(mating_pool_size):
-        r = random.uniform(0, 1)
-        for i, cp in enumerate(cumulative_probabilities):
-            if cp >= r:
-                mating_pool.append(ranked_population[i])
-                break
+for i in range(ITERATIONS):
+    population.sort(key=lambda c: c.fitness)
 
-    # Apply cross-over over parents pairs
-    random.shuffle(mating_pool)
-    offspring = []
-    for i in range(0, len(mating_pool) - 1, 2):
-        c1, c2 = crossover(mating_pool[i], mating_pool[i + 1], a=0.65)
-        offspring.extend([c1, c2])
+    if best_solution_ever is None or population[0].fitness < best_solution_ever.fitness:
+        best_solution_ever = population[0]
 
-    # Apply mutations over individual parents
-    for i in range(len(offspring)):
-        offspring[i] = mutate(offspring[i], mutation_rate=1, mutation_strength=0.2)
+    print(f'Iteration {i+1:3} | Best Loss: {population[0].fitness:,.6f} | Best Ever: {best_solution_ever.fitness:,.6f}')
 
-    combined = population + offspring
-    combined.sort(reverse=True, key=lambda c: c.fitness)
-    population = combined[-population_size:]
+    next_generation = []
+    next_generation.extend(population[:ELITISM_COUNT])
 
-    print(f"Iteration {current_iteration}")
-    print(f"Best fitness: {population[0].fitness:.6f}\n")
+    while len(next_generation) < POPULATION_SIZE:
+        tournament = random.sample(population, TOURNAMENT_SIZE)
+        tournament.sort(key=lambda c: c.fitness)
+        parent1 = tournament[0]
+        
+        tournament = random.sample(population, TOURNAMENT_SIZE)
+        tournament.sort(key=lambda c: c.fitness)
+        parent2 = tournament[0]
 
-print(f"\nExecution Time: {time.time() - start_time:.2f} seconds")
+        child1, child2 = crossover(parent1, parent2, CROSSOVER_ALPHA)
+
+        child1 = mutate(child1, MUTATION_RATE, MUTATION_STRENGTH)
+        child2 = mutate(child2, MUTATION_RATE, MUTATION_STRENGTH)
+        
+        child1.fitness = get_chromosome_fitness(child1, inputs, targets)
+        child2.fitness = get_chromosome_fitness(child2, inputs, targets)
+
+        next_generation.append(child1)
+        if len(next_generation) < POPULATION_SIZE:
+            next_generation.append(child2)
+    
+    population = next_generation
+
+execution_time = time.time() - start_time
+
+print("\n--- Genetic Algorithm Finished ---")
+print(f"Execution Time: {execution_time:.2f} seconds")
+print(f"Best solution loss: {best_solution_ever.fitness:,.6f}")

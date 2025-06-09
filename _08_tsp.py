@@ -172,8 +172,8 @@ def crossover(first_parent: Chromosome, second_parent: Chromosome):
     return first_child, second_child
 
 
-n_paths = 100
-n_matings = 100
+n_paths = 10
+n_matings = 20
 n_iterations = 1000
 
 start_time = time.time()

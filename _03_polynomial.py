@@ -1,18 +1,20 @@
-import math
-from pathlib import Path
 import csv
 import time
 import random
 import copy
+from pathlib import Path
 
-def load_dataset():
-    path = Path('data/Polynomial.csv')
+FUNCTIONS = ['+', '-', '*', '/']
+TERMINALS = ['x']
+
+def load_dataset(file_path='data/Polynomial.csv'):
+    inputs = []
+    outputs = []
+    path = Path(file_path)
+    
     lines = path.read_text(encoding='utf-8').splitlines()
     reader = csv.reader(lines)
     next(reader)
-
-    inputs = []
-    outputs = []
 
     for row in reader:
         inputs.append(float(row[0]))
@@ -25,211 +27,168 @@ class Tree:
         self.value = value
         self.left = left
         self.right = right
-        self.fitness = 0
-        self.selection_probability = 0
+        self.fitness = float('inf')
 
     def is_leaf(self):
         return self.left is None and self.right is None
 
+    def get_nodes(self):
+        nodes = [self]
+        if self.left:
+            nodes.extend(self.left.get_nodes())
+        if self.right:
+            nodes.extend(self.right.get_nodes())
+        return nodes
+
     def evaluate(self, x):
         try:
-            if self.value == 'x':
-                return x
-            elif self.value == 'sinx':
-                return math.sin(x)
-            elif self.value == 'cosx':
-                return math.cos(x)
-            elif self.value in FUNCTIONS:
-                left_val = self.left.evaluate(x)
-                right_val = self.right.evaluate(x)
+            if self.is_leaf():
+                if self.value == 'x':
+                    return x
+                else:
+                    return float(self.value)
+            
+            left_val = self.left.evaluate(x)
+            right_val = self.right.evaluate(x)
 
-                if self.value == '+':
-                    return left_val + right_val
-                elif self.value == '-':
-                    return left_val - right_val
-                elif self.value == '*':
-                    return left_val * right_val
-                elif self.value == '/':
-                    return left_val / right_val if right_val != 0 else 1
-                elif self.value == '^':
-                    if left_val < 0 and not float(right_val).is_integer():
-                        return 1
-                    return left_val ** right_val
-            else:
-                return float(self.value)
-        except Exception:
-            return 1e6
+            if self.value == '+':
+                return left_val + right_val
+            elif self.value == '-':
+                return left_val - right_val
+            elif self.value == '*':
+                return left_val * right_val
+            elif self.value == '/':
+                return left_val / right_val if right_val != 0 else 1.0
+        except (ValueError, OverflowError):
+            return 1e9
 
     def __repr__(self):
         if self.is_leaf():
             return str(self.value)
-        return f"({self.left} {self.value} {self.right})"
+        return f"({self.left.__repr__()} {self.value} {self.right.__repr__()})"
 
-def generate_random_tree(depth=3):
-    if depth == 0 or (depth > 1 and random.random() < 0.5):
-        if random.random() < 0.5:
-            return Tree('x')
-        else:
-            return Tree(str(random.randint(0, 9)))
-    else:
-        func = random.choice(FUNCTIONS)
-        left = generate_random_tree(depth - 1)
-        right = generate_random_tree(depth - 1)
-        return Tree(func, left, right)
+def generate_random_tree(max_depth=4, current_depth=0):
+    if current_depth >= max_depth or random.random() < 0.4:
+        terminal = random.choice(TERMINALS + [str(random.randint(-5, 5))])
+        return Tree(terminal)
+    
+    func = random.choice(FUNCTIONS)
+    left = generate_random_tree(max_depth, current_depth + 1)
+    right = generate_random_tree(max_depth, current_depth + 1)
+    return Tree(func, left, right)
 
 def get_tree_fitness(tree, inputs, outputs):
-    error = 0
-    for i, x in enumerate(inputs):
-        try:
-            y_pred = tree.evaluate(x)
-            y_true = outputs[i]
-            error += (y_pred - y_true) ** 2
-        except Exception:
-            error += 1e6
-    return error
+    error = 0.0
+    for x, y_true in zip(inputs, outputs):
+        y_pred = tree.evaluate(x)
+        if y_pred is None or abs(y_pred) > 1e9:
+            return float('inf')
+        error += (y_pred - y_true)**2
+    return error / len(inputs) if inputs else float('inf')
 
-def get_tree_selection_probability(rank, population_size, s=2):
-    return ((2 - s) / population_size) + ((2 * rank * (s - 1)) / (population_size * (population_size - 1)))
+def crossover(parent1, parent2):
+    child1 = copy.deepcopy(parent1)
+    child2 = copy.deepcopy(parent2)
 
-def get_sub_trees(tree, parent=None, is_left=None, result=None):
-    if result is None:
-        result = []
+    nodes1 = child1.get_nodes()
+    node1_to_replace = random.choice(nodes1)
+    
+    nodes2 = child2.get_nodes()
+    node2_subtree = copy.deepcopy(random.choice(nodes2))
 
-    if tree is not None and not tree.is_leaf():
-        result.append((tree, parent, is_left))
-        get_sub_trees(tree.left, tree, True, result)
-        get_sub_trees(tree.right, tree, False, result)
+    if node1_to_replace == child1:
+        return node2_subtree, child2
 
-    return result
+    parent_of_node1 = next(p for p in nodes1 if p.left == node1_to_replace or p.right == node1_to_replace)
 
-def get_tree_depth(tree):
-    if tree is None or tree.is_leaf():
-        return 1
-    return 1 + max(get_tree_depth(tree.left), get_tree_depth(tree.right))
-
-def crossover(first_parent: Tree, second_parent: Tree):
-    first_child = copy.deepcopy(first_parent)
-    second_child = copy.deepcopy(second_parent)
-
-    first_child_sub_trees = get_sub_trees(first_child)
-    second_child_sub_trees = get_sub_trees(second_child)
-
-    if not first_child_sub_trees or not second_child_sub_trees:
-        return first_child, second_child
-
-    first_subtree, first_parent_node, is_left1 = random.choice(first_child_sub_trees)
-    second_subtree, second_parent_node, is_left2 = random.choice(second_child_sub_trees)
-
-    MIN_DEPTH = 2
-    if first_parent_node is None and get_tree_depth(second_subtree) < MIN_DEPTH:
-        return first_child, second_child
-    if second_parent_node is None and get_tree_depth(first_subtree) < MIN_DEPTH:
-        return first_child, second_child
-
-    if first_parent_node is None:
-        first_child = second_subtree
+    if parent_of_node1.left == node1_to_replace:
+        parent_of_node1.left = node2_subtree
     else:
-        if is_left1:
-            first_parent_node.left = second_subtree
-        else:
-            first_parent_node.right = second_subtree
+        parent_of_node1.right = node2_subtree
 
-    if second_parent_node is None:
-        second_child = first_subtree
-    else:
-        if is_left2:
-            second_parent_node.left = first_subtree
-        else:
-            second_parent_node.right = first_subtree
+    return child1, child2
 
-    first_child.fitness = get_tree_fitness(first_child, inputs, outputs)
-    second_child.fitness = get_tree_fitness(second_child, inputs, outputs)
+def mutate(tree, max_new_subtree_depth=4):
+    mutated_tree = copy.deepcopy(tree)
+    nodes = mutated_tree.get_nodes()
+    
+    node_to_replace = random.choice(nodes)
+    
+    new_subtree = generate_random_tree(max_depth=max_new_subtree_depth)
 
-    return first_child, second_child
-
-def mutate(tree: Tree):
-    subtrees = get_sub_trees(tree)
-
-    if not subtrees:
-        return tree
-
-    _, parent, is_left = random.choice(subtrees)
-
-    new_subtree = generate_random_tree(random.randint(3, 6))
-
-    if parent is None:
-        new_subtree.fitness = get_tree_fitness(new_subtree, inputs, outputs)
+    if node_to_replace == mutated_tree:
         return new_subtree
-    else:
-        if is_left:
-            parent.left = new_subtree
-        else:
-            parent.right = new_subtree
-        
-        tree.fitness = get_tree_fitness(tree, inputs, outputs)
-        return tree
 
-FUNCTIONS = ['+', '-', '*', '/', '^']
-TERMINALS = ['x']
+    parent_nodes = [p for p in nodes if not p.is_leaf()]
+    for p in parent_nodes:
+        if p.left == node_to_replace:
+            p.left = new_subtree
+            return mutated_tree
+        if p.right == node_to_replace:
+            p.right = new_subtree
+            return mutated_tree
+    
+    return mutated_tree
+
+ITERATIONS = 20
+POPULATION_SIZE = 200
+ELITISM_COUNT = 5
+TOURNAMENT_SIZE = 7
+MUTATION_CHANCE = 0.25
+CROSSOVER_CHANCE = 0.7
+MUTATION_MAX_DEPTH = 4
+
 inputs, outputs = load_dataset()
-iterations = 20
-population_size = 100
-mating_pool_size = 100
-population = []
-mating_pool = []
 
 start_time = time.time()
 
-current_iteration = 1
-while current_iteration <= iterations:
-    # Initialize population
-    if current_iteration == 1:
-        while len(population) < population_size:
-            tree = generate_random_tree()
-            tree.fitness = get_tree_fitness(tree, inputs, outputs)
-            population.append(tree)
+population = []
+while len(population) < POPULATION_SIZE:
+    tree = generate_random_tree()
+    tree.fitness = get_tree_fitness(tree, inputs, outputs)
+    if tree.fitness != float('inf'):
+        population.append(tree)
+
+best_solution_ever = None
+
+for i in range(ITERATIONS):
+    population.sort(key=lambda t: t.fitness)
+
+    if best_solution_ever is None or population[0].fitness < best_solution_ever.fitness:
+        best_solution_ever = population[0]
+
+    print(f'Iteration {i+1:3} | Best MSE: {population[0].fitness:,.4f} | Best Ever: {best_solution_ever.fitness:,.4f}')
+
+    next_generation = []
+    next_generation.extend(population[:ELITISM_COUNT])
+
+    while len(next_generation) < POPULATION_SIZE:
+        
+        parent1 = random.sample(population, TOURNAMENT_SIZE)
+        parent1.sort(key=lambda t: t.fitness)
+        parent1 = parent1[0]
+
+        if random.random() < CROSSOVER_CHANCE:
+            tournament = random.sample(population, TOURNAMENT_SIZE)
+            tournament.sort(key=lambda t: t.fitness)
+            parent2 = tournament[0]
+            child1, _ = crossover(parent1, parent2)
+        else:
+            child1 = copy.deepcopy(parent1)
+
+        if random.random() < MUTATION_CHANCE:
+            child1 = mutate(child1, max_new_subtree_depth=MUTATION_MAX_DEPTH)
+            
+        child1.fitness = get_tree_fitness(child1, inputs, outputs)
+
+        if child1.fitness != float('inf'):
+            next_generation.append(child1)
     
-    # Rank individuals based on their fitness and calculate cumulative probabilities
-    ranked_population = sorted(population, reverse=True, key=lambda c: c.fitness)
-    cumulative_probabilities = []
-    cumulative_sum = 0
-    for i, tree in enumerate(ranked_population):
-        prob = get_tree_selection_probability(i, population_size, s=2)
-        tree.selection_probability = prob
-        cumulative_sum += prob
-        cumulative_probabilities.append(cumulative_sum)
+    population = next_generation
 
-    # Select parents for mating pool using Roulette Wheel
-    mating_pool.clear()
-    for _ in range(mating_pool_size):
-        r = random.uniform(0, 1)
-        for i, cp in enumerate(cumulative_probabilities):
-            if cp >= r:
-                mating_pool.append(ranked_population[i])
-                break
-    
-    # Apply cross-over over parents pairs
-    pair_indexes = list(range(len(mating_pool)))
-    random.shuffle(pair_indexes)
-    i = 2
-    while i <= len(pair_indexes):
-        cross_over_indexes = pair_indexes[i-2:i]
-        offsprings = crossover(mating_pool[cross_over_indexes[0]], mating_pool[cross_over_indexes[1]])
-        mating_pool.append(offsprings[0])
-        mating_pool.append(offsprings[1])
-        i += 2
+execution_time = time.time() - start_time
 
-    # Apply mutations over individual parents
-    for i in range(len(mating_pool)):
-        mating_pool[i] = mutate(mating_pool[i])
-
-    population_mating_pool = (population + mating_pool)
-    population_mating_pool = sorted(population_mating_pool, reverse=True, key=lambda c: c.fitness)
-    population = population_mating_pool[-population_size:]
-
-    print(f'Iteration {current_iteration:}')
-    print(f'Best tree fitness: {population[-1].fitness:_}\n')
-
-    current_iteration += 1
-
-print(f"\nExecution Time: {time.time() - start_time:.2f} seconds")
+print("\n--- Genetic Programming Finished ---")
+print(f"Execution Time: {execution_time:.2f} seconds")
+print(f"Best solution MSE: {best_solution_ever.fitness:,.4f}")
+print(f"Best solution expression: {best_solution_ever}")

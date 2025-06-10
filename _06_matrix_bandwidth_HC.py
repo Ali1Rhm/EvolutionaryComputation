@@ -77,7 +77,7 @@ def hill_climb(edge_list, max_steps=1000, neighbors_per_step=50, num_points=10, 
         best_score = min(points_scores)
         best_permutation = points[points_scores.index(best_score)]
         if log:
-            print(f"HC iteration {t:3d} — best bandwidth: {best_score}")
+            print(f"HC Iteration {t:3d} | Best Bandwidth: {best_score}")
     
     return best_permutation, best_score
 
@@ -88,4 +88,4 @@ if __name__ == '__main__':
 
     start_time = time.time()
     hill_climb(edge_list)
-    print(f"Total execution time: {time.time() - start_time:.2f} s")
+    print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")

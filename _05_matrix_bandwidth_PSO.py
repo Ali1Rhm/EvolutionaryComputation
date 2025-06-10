@@ -50,7 +50,7 @@ def diff_sequence(current: list, target: list) -> list:
 def combine(old_velocity: list,
             diff_to_pbest: list,
             diff_to_gbest: list,
-            w: float = 0.6,
+            w: float = 0.9,
             c1: float = 0.4,
             c2: float = 0.4,
             max_velocity_len: int = 20) -> list:
@@ -84,7 +84,7 @@ def combine(old_velocity: list,
     if len(new_vel) > max_velocity_len:
         new_vel = random.sample(new_vel, max_velocity_len)
 
-    #random.shuffle(new_vel)
+    random.shuffle(new_vel)
     return new_vel
 
 def apply_swaps(perm: list, swaps: list):
@@ -94,7 +94,7 @@ def apply_swaps(perm: list, swaps: list):
 
 N = 1624
 swarm_size = 50
-iterations = 5000
+iterations = 1000
 
 edge_list = get_edge_list(Path('data/BRP1624.txt'), N)
 print(f"Original matrix bandwidth: {get_bandwidth_from_edges(list(range(N)), edge_list)}")
@@ -109,29 +109,32 @@ g_best_score = min(p_best_scores)
 start_time = time.time()
 
 for t in range(1, iterations+1):
-    w = 0.8 - 0.2 * (t / iterations)
-    c1 = 0.8
-    c2 = 0.8
+    w = 0.7 - (0.2 * (t / iterations))
+    c1 = random.uniform(0.1, 0.3)
+    c2 = random.uniform(0.1, 0.3)
 
     for i in range(swarm_size):
         curr = swarm[i]
         v_old = velocities[i]
         diff_p = diff_sequence(curr, p_bests[i])
         diff_g = diff_sequence(curr, g_best)
-        v_new = combine(v_old, diff_p, diff_g, w, c1, c2)
+        v_new = combine(v_old, diff_p, diff_g, w, c1, c2, max_velocity_len=1000)
+        new_swarm = apply_swaps(curr.copy(), v_new)
         velocities[i] = v_new
-        swarm[i] = apply_swaps(curr.copy(), v_new)
-        score = get_bandwidth_from_edges(swarm[i], edge_list)
 
-        if score < p_best_scores[i]:
-            p_bests[i] = swarm[i].copy()
-            p_best_scores[i] = score
+        if get_bandwidth_from_edges(new_swarm, edge_list) < get_bandwidth_from_edges(swarm[i], edge_list):
+            swarm[i] = new_swarm
+            score = get_bandwidth_from_edges(swarm[i], edge_list)
 
-        if score < g_best_score:
-            g_best = swarm[i].copy()
-            g_best_score = score
+            if score < p_best_scores[i]:
+                p_bests[i] = swarm[i].copy()
+                p_best_scores[i] = score
 
-    print(f"Iteration {t:3d} — best bandwidth: {g_best_score}")
+            if score < g_best_score:
+                g_best = swarm[i].copy()
+                g_best_score = score
 
-print(f"Final best bandwidth: {g_best_score}")
-print(f"Total execution time: {time.time() - start_time:.2f} s")
+    print(f"Iteration {t:3d} | Best Bandwidth: {g_best_score}")
+
+print(f"Final Best Bandwidth: {g_best_score}")
+print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")

@@ -55,7 +55,7 @@ def combine(old_velocity: list,
             w: float = 0.6,
             c1: float = 0.4,
             c2: float = 0.4,
-            max_velocity_len: int = 20) -> list:
+            max_velocity_len: int = 50) -> list:
     keep = max(1, int(w * len(old_velocity)))
     new_vel = old_velocity[:keep]
 
@@ -96,7 +96,7 @@ def apply_swaps(perm: list, swaps: list):
 
 N = 1624
 swarm_size = 50
-iterations = 1000
+iterations = 600
 
 edge_list = get_edge_list(Path('data/BRP1624.txt'), N)
 print(f"Original matrix bandwidth: {get_bandwidth_from_edges(list(range(N)), edge_list)}")
@@ -142,8 +142,8 @@ for t in range(1, iterations+1):
     if polished_score < g_best_score:
       g_best, g_best_score = polished, polished_score
 
-    print(f"Iteration {t:3d} — best bandwidth: {g_best_score}")
+    print(f"Iteration {t:3d} | Best Bandwidth: {g_best_score}")
 
 
-print(f"Final best bandwidth: {g_best_score}")
-print(f"Total execution time: {time.time() - start_time:.2f} s")
+print(f"Final Best Bandwidth: {g_best_score}")
+print(f"Total Execution Time: {time.time() - start_time:.2f} seconds")
